@@ -1,0 +1,158 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bs-dark: #050505;
+  --color-bs-darker: #020202;
+  --color-bs-card: #111111;
+  --color-bs-surface: #161616;
+  --color-bs-border: #2a2a2a;
+  --color-bs-gray: #8c8c8c;
+  --color-bs-white: #f0f0ee;
+  --color-bs-red: #c8102e;
+  --color-bs-red-dark: #a00d24;
+  --color-bs-red-muted: #3d0510;
+
+  --font-display: var(--font-anton), Anton, sans-serif;
+  --font-sans: var(--font-inter), Inter, sans-serif;
+  --font-mono: var(--font-space-mono), "Space Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: #050505;
+  color: #f0f0ee;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+h4,
+.display {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  line-height: 0.95;
+  letter-spacing: 0.02em;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: #111111;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #8c8c8c;
+}
+
+/* Grain texture overlay */
+.grain::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 200px;
+}
+
+/* Tag/Label styles */
+.tag-live {
+  background: #c8102e;
+  color: #f0f0ee;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border: 1px solid #e01535;
+}
+
+.tag-critical {
+  background: #c8102e;
+  color: #f0f0ee;
+  animation: pulse-red 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-red {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.tag-blocked {
+  background: #3d0510;
+  border: 1px solid #c8102e;
+  color: #f0f0ee;
+}
+
+/* Barcode decoration */
+.barcode-lines {
+  background: repeating-linear-gradient(
+    90deg,
+    #f0f0ee 0px,
+    #f0f0ee 2px,
+    transparent 2px,
+    transparent 4px,
+    #f0f0ee 4px,
+    #f0f0ee 5px,
+    transparent 5px,
+    transparent 8px
+  );
+}
+
+/* Noise overlay for cards */
+.noise-card {
+  position: relative;
+  overflow: hidden;
+}
+.noise-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+  background-size: 100px;
+  pointer-events: none;
+  opacity: 0.04;
+}
+
+/* Selection */
+::selection {
+  background: #c8102e;
+  color: #f0f0ee;
+}
+
+/* Focus */
+*:focus-visible {
+  outline: 1px solid #c8102e;
+  outline-offset: 2px;
+}
