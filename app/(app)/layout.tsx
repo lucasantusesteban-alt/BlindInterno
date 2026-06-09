@@ -8,26 +8,20 @@ import { MobileNav } from "@/components/layout/MobileNav";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { currentUser } = useAppStore();
-  const [hydrated, setHydrated] = useState(false);
+  const { currentUser, loading, init } = useAppStore();
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    const unsub = useAppStore.persist.onFinishHydration(() => {
-      setHydrated(true);
-    });
-    if (useAppStore.persist.hasHydrated()) {
-      setHydrated(true);
-    }
-    return () => unsub();
-  }, []);
+    init().then(() => setInitialized(true));
+  }, [init]);
 
   useEffect(() => {
-    if (hydrated && !currentUser) {
+    if (initialized && !currentUser) {
       router.replace("/login");
     }
-  }, [hydrated, currentUser, router]);
+  }, [initialized, currentUser, router]);
 
-  if (!hydrated) {
+  if (!initialized || loading) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center">
         <div
@@ -40,9 +34,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!currentUser) {
-    return null;
-  }
+  if (!currentUser) return null;
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#050505]">

@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAppStore } from "@/store";
-import { LOGIN_USERS, USERS } from "@/lib/mock-data";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -22,16 +21,10 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
 
-    await new Promise((r) => setTimeout(r, 600));
-
-    const match = LOGIN_USERS.find(
-      (u) => u.email === email.toLowerCase() && u.password === password
-    );
-
-    if (match) {
-      login(match.userId);
+    try {
+      await login(email.toLowerCase(), password);
       router.replace("/dashboard");
-    } else {
+    } catch {
       setError("ACCESS DENIED. CHECK YOUR CREDENTIALS.");
       setLoading(false);
     }
@@ -181,35 +174,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Quick access hint */}
-        <div className="mt-8 border border-[#1a1a1a] p-4">
-          <p className="text-[#2a2a2a] text-[9px] tracking-[0.15em] mb-2" style={{ fontFamily: "var(--font-space-mono)" }}>
-            // DEMO ACCESS
-          </p>
-          <div className="space-y-1">
-            {USERS.map((u) => (
-              <button
-                key={u.id}
-                type="button"
-                onClick={() => {
-                  const lu = LOGIN_USERS.find((l) => l.userId === u.id);
-                  if (lu) { setEmail(lu.email); setPassword(lu.password); }
-                }}
-                className="flex items-center gap-2 w-full text-left hover:opacity-100 opacity-40 transition-opacity"
-              >
-                <span
-                  className="w-5 h-5 flex items-center justify-center text-[8px] font-bold flex-shrink-0"
-                  style={{ background: u.color === "#f0f0ee" ? "#2a2a2a" : u.color, color: "#f0f0ee" }}
-                >
-                  {u.initials}
-                </span>
-                <span className="text-[#8c8c8c] text-[9px]" style={{ fontFamily: "var(--font-space-mono)" }}>
-                  {u.email}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
 
         <p
           className="mt-6 text-center text-[#2a2a2a] text-[9px] tracking-[0.2em]"

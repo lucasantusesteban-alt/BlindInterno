@@ -522,6 +522,7 @@ function MyTasksView({
               onAddItem={onAddItem}
               onRemoveItem={onRemoveItem}
               onUpdateStatus={onUpdateStatus}
+              onDelete={onDelete}
               completed
             />
           ))}
