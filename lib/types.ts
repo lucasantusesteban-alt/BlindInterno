@@ -176,7 +176,8 @@ export interface WeeklyFocus {
 }
 
 export type InternalEventType =
-  | "meeting" | "review" | "planning" | "shoot" | "deadline" | "1to1" | "offsite" | "other";
+  | "meeting" | "review" | "planning" | "shoot" | "deadline" | "1to1" | "offsite"
+  | "post" | "recording" | "video_script" | "other";
 
 export interface InternalEvent {
   id: string;

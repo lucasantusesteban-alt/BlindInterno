@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react";
 import { Modal, FormField, inputClass, selectClass, textareaClass } from "@/components/ui/Modal";
 import { useAppStore } from "@/store";
+import { cn } from "@/lib/utils";
 import type { InternalEvent, InternalEventType } from "@/lib/types";
 
-const EVENT_TYPES: { value: InternalEventType; label: string }[] = [
+const INTERNAL_EVENT_TYPES: { value: InternalEventType; label: string }[] = [
   { value: "meeting", label: "MEETING" },
   { value: "review", label: "REVIEW" },
   { value: "planning", label: "PLANNING" },
@@ -16,21 +17,39 @@ const EVENT_TYPES: { value: InternalEventType; label: string }[] = [
   { value: "other", label: "OTRO" },
 ];
 
+const SOCIAL_EVENT_TYPES: { value: InternalEventType; label: string }[] = [
+  { value: "post", label: "POST / PUBLICACIÓN" },
+  { value: "recording", label: "GRABACIÓN" },
+  { value: "video_script", label: "SCRIPT DE VIDEO" },
+];
+
+const PLATFORMS = [
+  { value: "tiktok", label: "TT" },
+  { value: "instagram_reels", label: "IG REELS" },
+  { value: "instagram_stories", label: "IG STORIES" },
+  { value: "instagram_feed", label: "IG FEED" },
+  { value: "youtube_shorts", label: "YT SHORTS" },
+  { value: "whatsapp", label: "WHATSAPP" },
+  { value: "email", label: "EMAIL" },
+];
+
 interface EventFormModalProps {
   open: boolean;
   onClose: () => void;
   defaultDate?: string;
+  mode?: "internal" | "social";
 }
 
-export function EventFormModal({ open, onClose, defaultDate }: EventFormModalProps) {
+export function EventFormModal({ open, onClose, defaultDate, mode = "internal" }: EventFormModalProps) {
   const { users, currentUser, addInternalEvent } = useAppStore();
 
   const [title, setTitle] = useState("");
-  const [type, setType] = useState<InternalEventType>("meeting");
+  const [type, setType] = useState<InternalEventType>(mode === "social" ? "post" : "meeting");
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [location, setLocation] = useState("");
+  const [platforms, setPlatforms] = useState<string[]>([]);
   const [description, setDescription] = useState("");
   const [attendeeIds, setAttendeeIds] = useState<string[]>([]);
 
@@ -38,15 +57,16 @@ export function EventFormModal({ open, onClose, defaultDate }: EventFormModalPro
     if (open) {
       const today = new Date().toISOString().slice(0, 10);
       setTitle("");
-      setType("meeting");
+      setType(mode === "social" ? "post" : "meeting");
       setDate(defaultDate ?? today);
       setStartTime("");
       setEndTime("");
       setLocation("");
+      setPlatforms([]);
       setDescription("");
       setAttendeeIds(currentUser ? [currentUser.id] : []);
     }
-  }, [open, defaultDate, currentUser]);
+  }, [open, defaultDate, currentUser, mode]);
 
   function toggleAttendee(id: string) {
     setAttendeeIds((arr) =>
@@ -54,9 +74,17 @@ export function EventFormModal({ open, onClose, defaultDate }: EventFormModalPro
     );
   }
 
+  function togglePlatform(value: string) {
+    setPlatforms((arr) =>
+      arr.includes(value) ? arr.filter((x) => x !== value) : [...arr, value]
+    );
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !date) return;
+
+    const isSocial = mode === "social";
     const event: InternalEvent = {
       id: `ev-${Date.now()}`,
       title: title.trim(),
@@ -64,7 +92,9 @@ export function EventFormModal({ open, onClose, defaultDate }: EventFormModalPro
       date,
       startTime: startTime || undefined,
       endTime: endTime || undefined,
-      location: location.trim() || undefined,
+      location: isSocial
+        ? (platforms.length > 0 ? platforms.join(",") : undefined)
+        : (location.trim() || undefined),
       description: description.trim() || undefined,
       attendeeIds,
     };
@@ -72,8 +102,18 @@ export function EventFormModal({ open, onClose, defaultDate }: EventFormModalPro
     onClose();
   }
 
+  const eventTypes = mode === "social" ? SOCIAL_EVENT_TYPES : INTERNAL_EVENT_TYPES;
+  const isScript = type === "video_script";
+  const isSocial = mode === "social";
+
   return (
-    <Modal open={open} onClose={onClose} title="NUEVO EVENTO" subtitle="// calendario interno" size="md">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={isSocial ? "NUEVO EVENTO SOCIAL" : "NUEVO EVENTO"}
+      subtitle={isSocial ? "// calendario rrss" : "// calendario interno"}
+      size="md"
+    >
       <form onSubmit={handleSubmit} className="space-y-4">
         <FormField label="Título" required>
           <input
@@ -81,7 +121,13 @@ export function EventFormModal({ open, onClose, defaultDate }: EventFormModalPro
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Weekly sync, review mockups, sesión de grabación..."
+            placeholder={
+              isScript
+                ? "Nombre del video..."
+                : isSocial
+                ? "Qué se va a publicar / grabar..."
+                : "Weekly sync, review mockups..."
+            }
             className={inputClass}
             required
           />
@@ -93,7 +139,7 @@ export function EventFormModal({ open, onClose, defaultDate }: EventFormModalPro
             onChange={(e) => setType(e.target.value as InternalEventType)}
             className={selectClass}
           >
-            {EVENT_TYPES.map((t) => (
+            {eventTypes.map((t) => (
               <option key={t.value} value={t.value}>{t.label}</option>
             ))}
           </select>
@@ -128,15 +174,42 @@ export function EventFormModal({ open, onClose, defaultDate }: EventFormModalPro
           </FormField>
         </div>
 
-        <FormField label="Ubicación">
-          <input
-            type="text"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="Online, office, warehouse, externa..."
-            className={inputClass}
-          />
-        </FormField>
+        {/* Plataformas (social) vs Ubicación (internal) */}
+        {isSocial ? (
+          <FormField label="Plataformas">
+            <div className="flex flex-wrap gap-2">
+              {PLATFORMS.map((p) => {
+                const active = platforms.includes(p.value);
+                return (
+                  <button
+                    key={p.value}
+                    type="button"
+                    onClick={() => togglePlatform(p.value)}
+                    className={cn(
+                      "px-2.5 py-1 text-[9px] tracking-[0.1em] border transition-colors",
+                      active
+                        ? "bg-[#c8102e] border-[#c8102e] text-[#f0f0ee]"
+                        : "border-[#2a2a2a] text-[#8c8c8c] hover:border-[#8c8c8c] hover:text-[#f0f0ee]"
+                    )}
+                    style={{ fontFamily: "var(--font-space-mono)" }}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          </FormField>
+        ) : (
+          <FormField label="Ubicación">
+            <input
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Online, office, warehouse, externa..."
+              className={inputClass}
+            />
+          </FormField>
+        )}
 
         <FormField label="Asistentes">
           <div className="flex flex-wrap gap-2">
@@ -147,11 +220,12 @@ export function EventFormModal({ open, onClose, defaultDate }: EventFormModalPro
                   key={u.id}
                   type="button"
                   onClick={() => toggleAttendee(u.id)}
-                  className={`flex items-center gap-2 px-3 py-1.5 border transition-colors text-[10px] tracking-[0.1em] ${
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 border transition-colors text-[10px] tracking-[0.1em]",
                     active
                       ? "bg-[#c8102e] border-[#c8102e] text-[#f0f0ee]"
                       : "border-[#2a2a2a] text-[#8c8c8c] hover:border-[#8c8c8c] hover:text-[#f0f0ee]"
-                  }`}
+                  )}
                   style={{ fontFamily: "var(--font-space-mono)" }}
                 >
                   <span
@@ -170,16 +244,21 @@ export function EventFormModal({ open, onClose, defaultDate }: EventFormModalPro
           </div>
         </FormField>
 
-        <FormField label="Descripción">
+        <FormField label={isScript ? "Script / Descripción" : "Descripción"}>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Agenda, contexto, link de Zoom..."
-            className={textareaClass}
+            placeholder={
+              isScript
+                ? "Escribe aquí el script del video, el formato específico lo añadiremos pronto..."
+                : isSocial
+                ? "Copy, contexto, link donde se sube..."
+                : "Agenda, contexto, link de Zoom..."
+            }
+            className={cn(textareaClass, isScript && "min-h-[120px]")}
           />
         </FormField>
 
-        {/* Footer */}
         <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#1a1a1a]">
           <button
             type="button"

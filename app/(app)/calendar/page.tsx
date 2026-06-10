@@ -4,13 +4,17 @@ import { useState } from "react";
 import { useAppStore } from "@/store";
 import { TopBar } from "@/components/layout/TopBar";
 import { Avatar } from "@/components/ui/Avatar";
+import { EventFormModal } from "@/components/EventFormModal";
+import { EventDetailModal } from "@/components/EventDetailModal";
 import {
   getContentStatusColor, getPlatformColor, getPlatformEmoji, cn, formatDate,
 } from "@/lib/utils";
 import type { ContentStatus, InternalEventType, InternalEvent, ContentItem, User } from "@/lib/types";
 import { ChevronLeft, ChevronRight, List, Grid, Users as UsersIcon, Megaphone, Plus } from "lucide-react";
-import { EventFormModal } from "@/components/EventFormModal";
-import { addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, format, isSameDay, parseISO, startOfDay } from "date-fns";
+import {
+  addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval,
+  format, isSameDay, parseISO,
+} from "date-fns";
 import { es } from "date-fns/locale";
 
 const STATUS_LABELS: Record<ContentStatus, string> = {
@@ -26,6 +30,9 @@ const EVENT_TYPE_LABELS: Record<InternalEventType, string> = {
   deadline: "DEADLINE",
   "1to1": "1:1",
   offsite: "OFFSITE",
+  post: "POST",
+  recording: "GRABACIÓN",
+  video_script: "SCRIPT",
   other: "OTRO",
 };
 
@@ -37,8 +44,16 @@ const EVENT_TYPE_COLORS: Record<InternalEventType, string> = {
   deadline: "bg-[#c8102e] text-[#f0f0ee] border border-[#c8102e]",
   "1to1": "bg-[#2a2a2a] text-[#f0f0ee] border border-[#3a3a3a]",
   offsite: "bg-green-900/40 text-green-200 border border-green-700",
+  post: "bg-teal-900/40 text-teal-200 border border-teal-700",
+  recording: "bg-orange-900/40 text-orange-200 border border-orange-700",
+  video_script: "bg-indigo-900/40 text-indigo-200 border border-indigo-700",
   other: "bg-[#1a1a1a] text-[#8c8c8c] border border-[#2a2a2a]",
 };
+
+const INTERNAL_TYPES: InternalEventType[] = [
+  "meeting", "review", "planning", "shoot", "deadline", "1to1", "offsite", "other",
+];
+const SOCIAL_TYPES: InternalEventType[] = ["post", "recording", "video_script"];
 
 type CalendarMode = "internal" | "social";
 
@@ -52,40 +67,53 @@ export default function CalendarPage() {
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [eventModalOpen, setEventModalOpen] = useState(false);
   const [eventModalDate, setEventModalDate] = useState<string | undefined>(undefined);
+  const [detailEvent, setDetailEvent] = useState<InternalEvent | null>(null);
 
   function openNewEvent(forDay?: Date) {
     setEventModalDate(forDay ? format(forDay, "yyyy-MM-dd") : undefined);
     setEventModalOpen(true);
   }
 
+  function openDetail(e: React.MouseEvent, event: InternalEvent) {
+    e.stopPropagation();
+    setDetailEvent(event);
+  }
+
   const days = eachDayOfInterval({
     start: startOfMonth(currentMonth),
     end: endOfMonth(currentMonth),
   });
-
   const startWeekday = startOfMonth(currentMonth).getDay();
   const emptyCells = (startWeekday + 6) % 7;
 
-  // Filter content / events based on mode
+  // Split events by calendar mode
+  const internalModeEvents = internalEvents.filter((e) =>
+    INTERNAL_TYPES.includes(e.type) &&
+    (filterEventType === "all" || e.type === filterEventType)
+  );
+  const socialModeEvents = internalEvents.filter((e) =>
+    SOCIAL_TYPES.includes(e.type) &&
+    (filterEventType === "all" || e.type === filterEventType)
+  );
+
   const filteredContent = contentItems.filter((c) =>
     filterPlatform === "all" || c.platform === filterPlatform
   );
-  const filteredEvents = internalEvents.filter((e) =>
-    filterEventType === "all" || e.type === filterEventType
-  );
 
+  const activeEvents = mode === "internal" ? internalModeEvents : socialModeEvents;
+
+  function getEventsForDay(day: Date) {
+    return activeEvents.filter((e) => isSameDay(parseISO(e.date), day));
+  }
   function getContentForDay(day: Date) {
     return filteredContent.filter((c) => isSameDay(parseISO(c.publishDate), day));
   }
-  function getEventsForDay(day: Date) {
-    return filteredEvents.filter((e) => isSameDay(parseISO(e.date), day));
-  }
 
+  const selectedDayEvents = selectedDay
+    ? activeEvents.filter((e) => isSameDay(parseISO(e.date), selectedDay))
+    : [];
   const selectedDayContent = selectedDay
     ? filteredContent.filter((c) => isSameDay(parseISO(c.publishDate), selectedDay))
-    : [];
-  const selectedDayEvents = selectedDay
-    ? filteredEvents.filter((e) => isSameDay(parseISO(e.date), selectedDay))
     : [];
 
   return (
@@ -103,20 +131,18 @@ export default function CalendarPage() {
           </h1>
 
           <div className="flex items-center gap-3 flex-wrap">
+            {/* Filter */}
             {mode === "social" ? (
               <select
-                value={filterPlatform}
-                onChange={(e) => setFilterPlatform(e.target.value)}
+                value={filterEventType}
+                onChange={(e) => setFilterEventType(e.target.value)}
                 className="bg-[#111111] border border-[#2a2a2a] text-[#8c8c8c] px-3 py-1.5 text-[10px] tracking-[0.1em] focus:border-[#c8102e] focus:outline-none"
                 style={{ fontFamily: "var(--font-space-mono)" }}
               >
-                <option value="all">ALL PLATFORMS</option>
-                <option value="tiktok">TIKTOK</option>
-                <option value="instagram_reels">IG REELS</option>
-                <option value="instagram_stories">IG STORIES</option>
-                <option value="instagram_feed">IG FEED</option>
-                <option value="email">EMAIL</option>
-                <option value="whatsapp">WHATSAPP</option>
+                <option value="all">ALL SOCIAL</option>
+                <option value="post">POSTS</option>
+                <option value="recording">GRABACIONES</option>
+                <option value="video_script">SCRIPTS</option>
               </select>
             ) : (
               <select
@@ -152,23 +178,22 @@ export default function CalendarPage() {
               </button>
             </div>
 
-            {mode === "internal" && (
-              <button
-                onClick={() => openNewEvent()}
-                className="flex items-center gap-1.5 bg-[#c8102e] hover:bg-[#a00d24] text-[#f0f0ee] px-3 py-1.5 text-[10px] tracking-[0.1em] transition-colors"
-                style={{ fontFamily: "var(--font-space-mono)" }}
-              >
-                <Plus size={11} />
-                NEW EVENT
-              </button>
-            )}
+            {/* NEW EVENT — available in both modes */}
+            <button
+              onClick={() => openNewEvent()}
+              className="flex items-center gap-1.5 bg-[#c8102e] hover:bg-[#a00d24] text-[#f0f0ee] px-3 py-1.5 text-[10px] tracking-[0.1em] transition-colors"
+              style={{ fontFamily: "var(--font-space-mono)" }}
+            >
+              <Plus size={11} />
+              {mode === "social" ? "NEW POST" : "NEW EVENT"}
+            </button>
           </div>
         </div>
 
-        {/* Mode tabs — INTERNAL vs SOCIAL */}
+        {/* Mode tabs */}
         <div className="flex items-center gap-0 mb-6 border-b border-[#1a1a1a]">
           <button
-            onClick={() => { setMode("internal"); setSelectedDay(null); }}
+            onClick={() => { setMode("internal"); setSelectedDay(null); setFilterEventType("all"); }}
             className={cn(
               "flex items-center gap-2 px-4 py-2.5 text-[11px] tracking-[0.15em] transition-colors border-b-2 -mb-px",
               mode === "internal"
@@ -178,10 +203,10 @@ export default function CalendarPage() {
             style={{ fontFamily: "var(--font-space-mono)" }}
           >
             <UsersIcon size={13} />
-            INTERNAL — {filteredEvents.length}
+            INTERNAL — {internalModeEvents.length}
           </button>
           <button
-            onClick={() => { setMode("social"); setSelectedDay(null); }}
+            onClick={() => { setMode("social"); setSelectedDay(null); setFilterEventType("all"); }}
             className={cn(
               "flex items-center gap-2 px-4 py-2.5 text-[11px] tracking-[0.15em] transition-colors border-b-2 -mb-px",
               mode === "social"
@@ -191,13 +216,13 @@ export default function CalendarPage() {
             style={{ fontFamily: "var(--font-space-mono)" }}
           >
             <Megaphone size={13} />
-            SOCIAL — {filteredContent.length}
+            SOCIAL — {socialModeEvents.length}
           </button>
         </div>
 
         {view === "month" ? (
           <div>
-            {/* Month navigation */}
+            {/* Month nav */}
             <div className="flex items-center justify-between mb-4">
               <button
                 onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
@@ -238,7 +263,9 @@ export default function CalendarPage() {
                 <div key={`empty-${i}`} className="bg-[#050505] min-h-[80px] md:min-h-[100px]" />
               ))}
               {days.map((day) => {
-                const dayItems = mode === "internal" ? getEventsForDay(day) : getContentForDay(day);
+                const dayEvents = getEventsForDay(day);
+                const dayContent = mode === "social" ? getContentForDay(day) : [];
+                const allItems = [...dayEvents, ...dayContent];
                 const isSelected = selectedDay && isSameDay(day, selectedDay);
                 const isToday = isSameDay(day, new Date());
 
@@ -261,34 +288,35 @@ export default function CalendarPage() {
                       {format(day, "d")}
                     </div>
                     <div className="space-y-0.5">
-                      {mode === "internal"
-                        ? (dayItems as InternalEvent[]).slice(0, 3).map((e) => (
-                            <div
-                              key={e.id}
-                              className={cn(
-                                "text-[8px] px-1 py-0.5 truncate leading-tight",
-                                EVENT_TYPE_COLORS[e.type]
-                              )}
-                              style={{ fontFamily: "var(--font-space-mono)" }}
-                            >
-                              {e.startTime ? `${e.startTime} ` : ""}{e.title.substring(0, 20)}
-                            </div>
-                          ))
-                        : (dayItems as ContentItem[]).slice(0, 3).map((c) => (
-                            <div
-                              key={c.id}
-                              className={cn(
-                                "text-[8px] px-1 py-0.5 truncate leading-tight",
-                                getPlatformColor(c.platform)
-                              )}
-                              style={{ fontFamily: "var(--font-space-mono)" }}
-                            >
-                              {getPlatformEmoji(c.platform)} {c.title.substring(0, 20)}
-                            </div>
-                          ))}
-                      {dayItems.length > 3 && (
+                      {dayEvents.slice(0, 3).map((e) => (
+                        <div
+                          key={e.id}
+                          onClick={(ev) => openDetail(ev, e)}
+                          className={cn(
+                            "text-[8px] px-1 py-0.5 truncate leading-tight cursor-pointer hover:opacity-80 transition-opacity",
+                            EVENT_TYPE_COLORS[e.type]
+                          )}
+                          style={{ fontFamily: "var(--font-space-mono)" }}
+                        >
+                          {e.startTime ? `${e.startTime} ` : ""}
+                          {e.title.substring(0, 18)}
+                        </div>
+                      ))}
+                      {mode === "social" && dayContent.slice(0, Math.max(0, 3 - dayEvents.length)).map((c) => (
+                        <div
+                          key={c.id}
+                          className={cn(
+                            "text-[8px] px-1 py-0.5 truncate leading-tight",
+                            getPlatformColor(c.platform)
+                          )}
+                          style={{ fontFamily: "var(--font-space-mono)" }}
+                        >
+                          {getPlatformEmoji(c.platform)} {c.title.substring(0, 18)}
+                        </div>
+                      ))}
+                      {allItems.length > 3 && (
                         <div className="text-[8px] text-[#8c8c8c]" style={{ fontFamily: "var(--font-space-mono)" }}>
-                          +{dayItems.length - 3} more
+                          +{allItems.length - 3} more
                         </div>
                       )}
                     </div>
@@ -308,41 +336,35 @@ export default function CalendarPage() {
                     {format(selectedDay, "EEEE d MMMM", { locale: es }).toUpperCase()}
                   </h3>
                   <div className="flex items-center gap-2">
-                    {mode === "internal" && (
-                      <button
-                        onClick={() => openNewEvent(selectedDay)}
-                        className="flex items-center gap-1 text-[#c8102e] hover:text-[#a00d24] text-[10px] tracking-[0.15em] transition-colors"
-                        style={{ fontFamily: "var(--font-space-mono)" }}
-                      >
-                        <Plus size={11} />
-                        AÑADIR EVENTO
-                      </button>
-                    )}
+                    <button
+                      onClick={() => openNewEvent(selectedDay)}
+                      className="flex items-center gap-1 text-[#c8102e] hover:text-[#a00d24] text-[10px] tracking-[0.15em] transition-colors"
+                      style={{ fontFamily: "var(--font-space-mono)" }}
+                    >
+                      <Plus size={11} />
+                      AÑADIR
+                    </button>
                     <button onClick={() => setSelectedDay(null)} className="text-[#8c8c8c] hover:text-[#f0f0ee]">
                       <ChevronLeft size={14} />
                     </button>
                   </div>
                 </div>
 
-                {mode === "internal" ? (
-                  selectedDayEvents.length === 0 ? (
-                    <p className="text-[#2a2a2a] text-[10px]" style={{ fontFamily: "var(--font-space-mono)" }}>
-                      NO EVENTS
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {selectedDayEvents.map((e) => (
-                        <EventRow key={e.id} event={e} users={users} />
-                      ))}
-                    </div>
-                  )
-                ) : selectedDayContent.length === 0 ? (
+                {selectedDayEvents.length === 0 && selectedDayContent.length === 0 ? (
                   <p className="text-[#2a2a2a] text-[10px]" style={{ fontFamily: "var(--font-space-mono)" }}>
-                    NO CONTENT SCHEDULED
+                    SIN EVENTOS
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {selectedDayContent.map((c) => {
+                    {selectedDayEvents.map((e) => (
+                      <EventRow
+                        key={e.id}
+                        event={e}
+                        users={users}
+                        onClick={() => setDetailEvent(e)}
+                      />
+                    ))}
+                    {mode === "social" && selectedDayContent.map((c) => {
                       const assignee = users.find((u) => u.id === c.assigneeId);
                       return (
                         <div key={c.id} className="flex items-start gap-3 py-2 border-b border-[#1a1a1a] last:border-0">
@@ -377,46 +399,49 @@ export default function CalendarPage() {
         ) : (
           /* List view */
           <div className="space-y-1">
-            {mode === "internal" ? (
-              filteredEvents
-                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-                .map((e) => (
-                  <EventRow key={e.id} event={e} users={users} showDate />
-                ))
-            ) : (
-              filteredContent
-                .sort((a, b) => new Date(a.publishDate).getTime() - new Date(b.publishDate).getTime())
-                .map((item) => {
-                  const assignee = users.find((u) => u.id === item.assigneeId);
-                  return (
-                    <div
-                      key={item.id}
-                      className="flex items-center gap-3 bg-[#111111] border border-[#1a1a1a] px-4 py-3 hover:border-[#2a2a2a] transition-colors"
-                    >
-                      <div className={cn("px-1.5 py-1 text-[9px] flex-shrink-0", getPlatformColor(item.platform))}
-                        style={{ fontFamily: "var(--font-space-mono)" }}>
-                        {getPlatformEmoji(item.platform)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[#f0f0ee] text-sm truncate">{item.title}</p>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          <span className="text-[#8c8c8c] text-[9px]" style={{ fontFamily: "var(--font-space-mono)" }}>
-                            {formatDate(item.publishDate)} {item.publishTime || ""}
-                          </span>
-                          <span className="text-[#8c8c8c] text-[9px]" style={{ fontFamily: "var(--font-space-mono)" }}>
-                            {item.format.replace(/_/g, " ").toUpperCase()}
-                          </span>
-                        </div>
-                      </div>
-                      <span className={cn("text-[9px] px-1.5 py-0.5 hidden md:block", getContentStatusColor(item.status))}
-                        style={{ fontFamily: "var(--font-space-mono)" }}>
-                        {STATUS_LABELS[item.status]}
-                      </span>
-                      {assignee && <Avatar user={assignee} size="xs" />}
+            {activeEvents
+              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+              .map((e) => (
+                <EventRow
+                  key={e.id}
+                  event={e}
+                  users={users}
+                  showDate
+                  onClick={() => setDetailEvent(e)}
+                />
+              ))}
+            {mode === "social" && filteredContent
+              .sort((a, b) => new Date(a.publishDate).getTime() - new Date(b.publishDate).getTime())
+              .map((item) => {
+                const assignee = users.find((u) => u.id === item.assigneeId);
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-3 bg-[#111111] border border-[#1a1a1a] px-4 py-3 hover:border-[#2a2a2a] transition-colors"
+                  >
+                    <div className={cn("px-1.5 py-1 text-[9px] flex-shrink-0", getPlatformColor(item.platform))}
+                      style={{ fontFamily: "var(--font-space-mono)" }}>
+                      {getPlatformEmoji(item.platform)}
                     </div>
-                  );
-                })
-            )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[#f0f0ee] text-sm truncate">{item.title}</p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className="text-[#8c8c8c] text-[9px]" style={{ fontFamily: "var(--font-space-mono)" }}>
+                          {formatDate(item.publishDate)} {item.publishTime || ""}
+                        </span>
+                        <span className="text-[#8c8c8c] text-[9px]" style={{ fontFamily: "var(--font-space-mono)" }}>
+                          {item.format.replace(/_/g, " ").toUpperCase()}
+                        </span>
+                      </div>
+                    </div>
+                    <span className={cn("text-[9px] px-1.5 py-0.5 hidden md:block", getContentStatusColor(item.status))}
+                      style={{ fontFamily: "var(--font-space-mono)" }}>
+                      {STATUS_LABELS[item.status]}
+                    </span>
+                    {assignee && <Avatar user={assignee} size="xs" />}
+                  </div>
+                );
+              })}
           </div>
         )}
       </div>
@@ -425,20 +450,45 @@ export default function CalendarPage() {
         open={eventModalOpen}
         onClose={() => setEventModalOpen(false)}
         defaultDate={eventModalDate}
+        mode={mode}
+      />
+
+      <EventDetailModal
+        event={detailEvent}
+        users={users}
+        onClose={() => setDetailEvent(null)}
       />
     </div>
   );
 }
 
-function EventRow({ event, users, showDate }: { event: InternalEvent; users: User[]; showDate?: boolean }) {
+function EventRow({
+  event,
+  users,
+  showDate,
+  onClick,
+}: {
+  event: InternalEvent;
+  users: User[];
+  showDate?: boolean;
+  onClick?: () => void;
+}) {
   const attendees = event.attendeeIds
     .map((id) => users.find((u) => u.id === id))
     .filter((u): u is User => !!u);
 
   return (
-    <div className="flex items-start gap-3 bg-[#111111] border border-[#1a1a1a] px-4 py-3 hover:border-[#2a2a2a] transition-colors">
-      <div className={cn("px-1.5 py-1 text-[9px] flex-shrink-0", EVENT_TYPE_COLORS[event.type])}
-        style={{ fontFamily: "var(--font-space-mono)" }}>
+    <div
+      onClick={onClick}
+      className={cn(
+        "flex items-start gap-3 bg-[#111111] border border-[#1a1a1a] px-4 py-3 transition-colors",
+        onClick && "cursor-pointer hover:border-[#2a2a2a]"
+      )}
+    >
+      <div
+        className={cn("px-1.5 py-1 text-[9px] flex-shrink-0", EVENT_TYPE_COLORS[event.type])}
+        style={{ fontFamily: "var(--font-space-mono)" }}
+      >
         {EVENT_TYPE_LABELS[event.type]}
       </div>
       <div className="flex-1 min-w-0">
@@ -454,15 +504,17 @@ function EventRow({ event, users, showDate }: { event: InternalEvent; users: Use
               {event.startTime}{event.endTime ? ` — ${event.endTime}` : ""}
             </span>
           )}
-          {event.location && (
+          {event.location && !["post", "recording", "video_script"].includes(event.type) && (
             <span className="text-[#8c8c8c] text-[9px]" style={{ fontFamily: "var(--font-space-mono)" }}>
               {event.location.toUpperCase()}
             </span>
           )}
+          {["post", "recording", "video_script"].includes(event.type) && event.location && (
+            <span className="text-[#8c8c8c] text-[9px]" style={{ fontFamily: "var(--font-space-mono)" }}>
+              {event.location.split(",").map(p => p.trim().toUpperCase()).join(" · ")}
+            </span>
+          )}
         </div>
-        {event.description && (
-          <p className="text-[#8c8c8c] text-[10px] mt-1.5 leading-relaxed">{event.description}</p>
-        )}
       </div>
       <div className="flex -space-x-1 flex-shrink-0">
         {attendees.slice(0, 4).map((u) => (
