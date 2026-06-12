@@ -28,6 +28,7 @@ export function NotificationsSettings() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     const sup = pushSupported();
     setSupported(sup);
     setPermission(currentPermission());
@@ -35,10 +36,25 @@ export function NotificationsSettings() {
       setLoading(false);
       return;
     }
-    isSubscribed().then((s) => {
-      setSubscribed(s);
-      setLoading(false);
-    });
+    // Guard: navigator.serviceWorker.ready can hang on iOS; never stay stuck loading.
+    const timeout = setTimeout(() => {
+      if (!cancelled) setLoading(false);
+    }, 3000);
+    isSubscribed()
+      .then((s) => {
+        if (!cancelled) setSubscribed(s);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) {
+          clearTimeout(timeout);
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
   }, []);
 
   async function handleEnable() {
