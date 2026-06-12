@@ -1,9 +1,16 @@
-const CACHE_NAME = "blindsaint-os-v3";
-const STATIC_ASSETS = ["/", "/login", "/dashboard", "/manifest.json"];
+const CACHE_NAME = "blindsaint-os-v4";
+// Trailing slashes matter: the app uses trailingSlash, so "/login" 301s to
+// "/login/". Caching a redirected response throws and would fail the whole
+// install — keep these exact and tolerate individual failures below.
+const STATIC_ASSETS = ["/", "/login/", "/dashboard/", "/manifest.json"];
 
 self.addEventListener("install", (event) => {
+  // allSettled so a single un-cacheable asset can never break SW installation
+  // (a failed install means no active SW, which breaks push entirely).
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => Promise.allSettled(STATIC_ASSETS.map((u) => cache.add(u))))
   );
   self.skipWaiting();
 });
