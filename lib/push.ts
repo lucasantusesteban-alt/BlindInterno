@@ -52,6 +52,13 @@ export async function isSubscribed(): Promise<boolean> {
 
 type SubResult = { ok: boolean; error?: string };
 
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(label)), ms)),
+  ]);
+}
+
 function authUserId(): string | undefined {
   // SDK 0.27 exposes authStore.record; older versions used .model.
   const store = pb.authStore as unknown as {
@@ -69,13 +76,22 @@ export async function subscribeToPush(): Promise<SubResult> {
     const permission = await Notification.requestPermission();
     if (permission !== "granted") return { ok: false, error: "denied" };
 
-    const reg = await navigator.serviceWorker.ready;
+    // Make sure a SW is registered, then wait for it to be ready (with a
+    // timeout — navigator.serviceWorker.ready can hang forever on iOS).
+    let reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) reg = await navigator.serviceWorker.register("/sw.js");
+    reg = await withTimeout(navigator.serviceWorker.ready, 10000, "sw_timeout");
+
     let sub = await reg.pushManager.getSubscription();
     if (!sub) {
-      sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
-      });
+      sub = await withTimeout(
+        reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
+        }),
+        15000,
+        "subscribe_timeout"
+      );
     }
 
     const json = sub.toJSON();
@@ -88,7 +104,11 @@ export async function subscribeToPush(): Promise<SubResult> {
     if (!userId) {
       // Auth token is valid but the record wasn't hydrated — refresh it.
       try {
-        const refreshed = await pb.collection("users").authRefresh();
+        const refreshed = await withTimeout(
+          pb.collection("users").authRefresh(),
+          10000,
+          "refresh_timeout"
+        );
         userId = refreshed.record?.id;
       } catch {
         /* fall through */
@@ -96,26 +116,38 @@ export async function subscribeToPush(): Promise<SubResult> {
     }
     if (!userId) return { ok: false, error: "no_user" };
 
-    const existing = await pb
-      .collection("push_subscriptions")
-      .getFirstListItem(`endpoint="${endpoint}"`)
-      .catch(() => null);
+    const existing = await withTimeout(
+      pb
+        .collection("push_subscriptions")
+        .getFirstListItem(`endpoint="${endpoint}"`)
+        .catch(() => null),
+      10000,
+      "save_timeout"
+    );
 
     if (existing) {
-      await pb.collection("push_subscriptions").update(existing.id, {
-        user: userId,
-        p256dh: keys.p256dh,
-        auth: keys.auth,
-        userAgent: navigator.userAgent,
-      });
+      await withTimeout(
+        pb.collection("push_subscriptions").update(existing.id, {
+          user: userId,
+          p256dh: keys.p256dh,
+          auth: keys.auth,
+          userAgent: navigator.userAgent,
+        }),
+        10000,
+        "save_timeout"
+      );
     } else {
-      await pb.collection("push_subscriptions").create({
-        user: userId,
-        endpoint,
-        p256dh: keys.p256dh,
-        auth: keys.auth,
-        userAgent: navigator.userAgent,
-      });
+      await withTimeout(
+        pb.collection("push_subscriptions").create({
+          user: userId,
+          endpoint,
+          p256dh: keys.p256dh,
+          auth: keys.auth,
+          userAgent: navigator.userAgent,
+        }),
+        10000,
+        "save_timeout"
+      );
     }
     return { ok: true };
   } catch (e) {

@@ -19,6 +19,10 @@ const ERROR_LABELS: Record<string, string> = {
   no_keys: "El navegador no devolvió las claves de cifrado.",
   no_user: "No se pudo identificar tu usuario. Cierra sesión y vuelve a entrar.",
   save_failed: "Error al guardar la suscripción.",
+  sw_timeout: "El service worker no respondió. Cierra la app del todo y reábrela.",
+  subscribe_timeout: "iOS no completó la suscripción. Reintenta o reinstala la app.",
+  refresh_timeout: "No se pudo refrescar la sesión (sin conexión con el servidor).",
+  save_timeout: "No se pudo guardar la suscripción (sin conexión con el servidor).",
 };
 
 export function NotificationsSettings() {
