@@ -13,9 +13,11 @@ import {
 
 const ERROR_LABELS: Record<string, string> = {
   unsupported: "Tu navegador no soporta notificaciones push.",
-  not_authenticated: "Inicia sesión para activar las notificaciones.",
+  not_authenticated: "Inicia sesión de nuevo para activar las notificaciones.",
   denied: "Permiso denegado. Actívalo en los ajustes del navegador.",
-  invalid_subscription: "No se pudo crear la suscripción. Inténtalo de nuevo.",
+  no_endpoint: "El navegador no devolvió un endpoint de push.",
+  no_keys: "El navegador no devolvió las claves de cifrado.",
+  no_user: "No se pudo identificar tu usuario. Cierra sesión y vuelve a entrar.",
   save_failed: "Error al guardar la suscripción.",
 };
 
@@ -60,15 +62,20 @@ export function NotificationsSettings() {
   async function handleEnable() {
     setWorking(true);
     setError(null);
-    const res = await subscribeToPush();
-    if (res.ok) {
-      setSubscribed(true);
-      setPermission("granted");
-    } else {
-      setError(ERROR_LABELS[res.error ?? ""] ?? res.error ?? "Error desconocido.");
-      setPermission(currentPermission());
+    try {
+      const res = await subscribeToPush();
+      if (res.ok) {
+        setSubscribed(true);
+        setPermission("granted");
+      } else {
+        setError(ERROR_LABELS[res.error ?? ""] ?? res.error ?? "Error desconocido.");
+        setPermission(currentPermission());
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error desconocido.");
+    } finally {
+      setWorking(false);
     }
-    setWorking(false);
   }
 
   async function handleDisable() {

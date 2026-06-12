@@ -52,31 +52,50 @@ export async function isSubscribed(): Promise<boolean> {
 
 type SubResult = { ok: boolean; error?: string };
 
+function authUserId(): string | undefined {
+  // SDK 0.27 exposes authStore.record; older versions used .model.
+  const store = pb.authStore as unknown as {
+    record?: { id?: string };
+    model?: { id?: string };
+  };
+  return store.record?.id ?? store.model?.id;
+}
+
 export async function subscribeToPush(): Promise<SubResult> {
-  if (!pushSupported()) return { ok: false, error: "unsupported" };
-  if (!pb.authStore.isValid) return { ok: false, error: "not_authenticated" };
-
-  const permission = await Notification.requestPermission();
-  if (permission !== "granted") return { ok: false, error: "denied" };
-
-  const reg = await navigator.serviceWorker.ready;
-  let sub = await reg.pushManager.getSubscription();
-  if (!sub) {
-    sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
-    });
-  }
-
-  const json = sub.toJSON();
-  const endpoint = json.endpoint;
-  const keys = json.keys;
-  const userId = pb.authStore.model?.id;
-  if (!endpoint || !keys?.p256dh || !keys?.auth || !userId) {
-    return { ok: false, error: "invalid_subscription" };
-  }
-
   try {
+    if (!pushSupported()) return { ok: false, error: "unsupported" };
+    if (!pb.authStore.isValid) return { ok: false, error: "not_authenticated" };
+
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") return { ok: false, error: "denied" };
+
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
+      });
+    }
+
+    const json = sub.toJSON();
+    const endpoint = json.endpoint;
+    const keys = json.keys;
+    if (!endpoint) return { ok: false, error: "no_endpoint" };
+    if (!keys?.p256dh || !keys?.auth) return { ok: false, error: "no_keys" };
+
+    let userId = authUserId();
+    if (!userId) {
+      // Auth token is valid but the record wasn't hydrated — refresh it.
+      try {
+        const refreshed = await pb.collection("users").authRefresh();
+        userId = refreshed.record?.id;
+      } catch {
+        /* fall through */
+      }
+    }
+    if (!userId) return { ok: false, error: "no_user" };
+
     const existing = await pb
       .collection("push_subscriptions")
       .getFirstListItem(`endpoint="${endpoint}"`)
@@ -100,7 +119,8 @@ export async function subscribeToPush(): Promise<SubResult> {
     }
     return { ok: true };
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "save_failed";
+    console.error("[push] subscribe failed", e);
+    const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, error: msg };
   }
 }
