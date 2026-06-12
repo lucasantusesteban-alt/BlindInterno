@@ -1,4 +1,4 @@
-const CACHE_NAME = "blindsaint-os-v2";
+const CACHE_NAME = "blindsaint-os-v3";
 const STATIC_ASSETS = ["/", "/login", "/dashboard", "/manifest.json"];
 
 self.addEventListener("install", (event) => {
@@ -24,6 +24,27 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== location.origin) return;
 
+  const isNavigation =
+    event.request.mode === "navigate" ||
+    (event.request.headers.get("accept") || "").includes("text/html");
+
+  // Network-first for pages, so new deploys show up immediately.
+  if (isNavigation) {
+    event.respondWith(
+      fetch(event.request)
+        .then((res) => {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((c) => c.put(event.request, clone));
+          return res;
+        })
+        .catch(() =>
+          caches.match(event.request).then((c) => c || caches.match("/"))
+        )
+    );
+    return;
+  }
+
+  // Cache-first for hashed static assets (immutable).
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const network = fetch(event.request).then((res) => {

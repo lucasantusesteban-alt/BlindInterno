@@ -4,15 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard, CheckSquare, Calendar, BarChart2, Users,
+  LayoutDashboard, CheckSquare, Calendar, BarChart2, Users, Settings,
 } from "lucide-react";
 
 const MOBILE_NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard", label: "Inicio", icon: LayoutDashboard },
   { href: "/tasks", label: "Tareas", icon: CheckSquare },
-  { href: "/calendar", label: "Calendario", icon: Calendar },
+  { href: "/calendar", label: "Calendar", icon: Calendar },
   { href: "/analytics", label: "Data", icon: BarChart2 },
   { href: "/team", label: "Crew", icon: Users },
+  { href: "/settings", label: "Ajustes", icon: Settings },
 ];
 
 export function MobileNav() {
