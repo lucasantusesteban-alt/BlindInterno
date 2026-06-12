@@ -119,22 +119,23 @@ export const useAppStore = create<AppState>()((set, get) => ({
       return;
     }
 
-    try {
-      const [tasksRes, eventsRes, usersRes] = await Promise.all([
-        pb.collection("tasks").getFullList({ sort: "-created" }),
-        pb.collection("internal_events").getFullList({ sort: "date" }),
-        pb.collection("users").getFullList(),
-      ]);
+    // Fetch independently: a single failing query must never blank the whole app.
+    const [tasksRes, eventsRes, usersRes] = await Promise.allSettled([
+      pb.collection("tasks").getFullList({ sort: "-created" }),
+      pb.collection("internal_events").getFullList({ sort: "date" }),
+      pb.collection("users").getFullList(),
+    ]);
 
-      set({
-        tasks: tasksRes.map(pbToTask),
-        internalEvents: eventsRes.map(pbToEvent),
-        users: usersRes.map(pbToUser),
-        loading: false,
-      });
-    } catch {
-      set({ loading: false });
-    }
+    if (tasksRes.status === "rejected") console.error("[store] tasks load failed", tasksRes.reason);
+    if (eventsRes.status === "rejected") console.error("[store] events load failed", eventsRes.reason);
+    if (usersRes.status === "rejected") console.error("[store] users load failed", usersRes.reason);
+
+    set({
+      tasks: tasksRes.status === "fulfilled" ? tasksRes.value.map(pbToTask) : [],
+      internalEvents: eventsRes.status === "fulfilled" ? eventsRes.value.map(pbToEvent) : [],
+      users: usersRes.status === "fulfilled" ? usersRes.value.map(pbToUser) : [],
+      loading: false,
+    });
 
     // Realtime subscriptions
     if (unsubTasks) unsubTasks();
