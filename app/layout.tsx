@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Anton, Inter, Space_Mono } from "next/font/google";
 import "./globals.css";
+import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 
 const anton = Anton({
   variable: "--font-anton",
@@ -56,6 +57,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${anton.variable} ${inter.variable} ${spaceMono.variable} h-full`}>
       <body className="grain h-full bg-bs-dark text-bs-white antialiased">
+        <ServiceWorkerRegister />
         {children}
       </body>
     </html>

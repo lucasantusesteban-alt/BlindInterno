@@ -1,0 +1,155 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Card, CardHeader, CardContent } from "@/components/ui/Card";
+import { Bell, BellOff, Check } from "lucide-react";
+import {
+  pushSupported,
+  currentPermission,
+  isSubscribed,
+  subscribeToPush,
+  unsubscribeFromPush,
+} from "@/lib/push";
+
+const ERROR_LABELS: Record<string, string> = {
+  unsupported: "Tu navegador no soporta notificaciones push.",
+  not_authenticated: "Inicia sesión para activar las notificaciones.",
+  denied: "Permiso denegado. Actívalo en los ajustes del navegador.",
+  invalid_subscription: "No se pudo crear la suscripción. Inténtalo de nuevo.",
+  save_failed: "Error al guardar la suscripción.",
+};
+
+export function NotificationsSettings() {
+  const [supported, setSupported] = useState(true);
+  const [subscribed, setSubscribed] = useState(false);
+  const [permission, setPermission] = useState<NotificationPermission | "unsupported">("default");
+  const [loading, setLoading] = useState(true);
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const sup = pushSupported();
+    setSupported(sup);
+    setPermission(currentPermission());
+    if (!sup) {
+      setLoading(false);
+      return;
+    }
+    isSubscribed().then((s) => {
+      setSubscribed(s);
+      setLoading(false);
+    });
+  }, []);
+
+  async function handleEnable() {
+    setWorking(true);
+    setError(null);
+    const res = await subscribeToPush();
+    if (res.ok) {
+      setSubscribed(true);
+      setPermission("granted");
+    } else {
+      setError(ERROR_LABELS[res.error ?? ""] ?? res.error ?? "Error desconocido.");
+      setPermission(currentPermission());
+    }
+    setWorking(false);
+  }
+
+  async function handleDisable() {
+    setWorking(true);
+    setError(null);
+    await unsubscribeFromPush();
+    setSubscribed(false);
+    setWorking(false);
+  }
+
+  const isIOS =
+    typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone =
+    typeof window !== "undefined" &&
+    (window.matchMedia?.("(display-mode: standalone)").matches ||
+      // @ts-expect-error iOS Safari legacy flag
+      window.navigator.standalone === true);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Bell size={13} className="text-[#c8102e]" />
+          <span
+            className="text-[#f0f0ee] text-[11px] tracking-[0.2em]"
+            style={{ fontFamily: "var(--font-space-mono)" }}
+          >
+            NOTIFICACIONES PUSH
+          </span>
+        </div>
+        {subscribed && (
+          <span className="flex items-center gap-1 text-green-400 text-[9px] tracking-[0.15em]"
+            style={{ fontFamily: "var(--font-space-mono)" }}>
+            <Check size={10} /> ACTIVAS
+          </span>
+        )}
+      </CardHeader>
+      <CardContent>
+        <p className="text-[#8c8c8c] text-xs leading-relaxed mb-4">
+          Recibe un recordatorio diario con tus tareas pendientes y los eventos del
+          día, además de avisos antes de cada grabación o publicación programada.
+        </p>
+
+        {!supported ? (
+          <div className="border border-[#2a2a2a] bg-[#0a0a0a] p-3">
+            <p className="text-[#8c8c8c] text-[10px]" style={{ fontFamily: "var(--font-space-mono)" }}>
+              {isIOS && !isStandalone
+                ? "// En iPhone: añade la app a la pantalla de inicio (Compartir › Añadir a inicio) y vuelve aquí para activarlas."
+                : "// Tu navegador no soporta notificaciones push."}
+            </p>
+          </div>
+        ) : loading ? (
+          <p className="text-[#2a2a2a] text-[10px]" style={{ fontFamily: "var(--font-space-mono)" }}>
+            CARGANDO...
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {!subscribed ? (
+              <button
+                onClick={handleEnable}
+                disabled={working || permission === "denied"}
+                className="flex items-center gap-2 bg-[#c8102e] hover:bg-[#a00d24] disabled:opacity-40 disabled:cursor-not-allowed text-[#f0f0ee] px-4 py-2.5 text-[10px] tracking-[0.15em] transition-colors"
+                style={{ fontFamily: "var(--font-space-mono)" }}
+              >
+                <Bell size={12} />
+                {working ? "ACTIVANDO..." : "ACTIVAR NOTIFICACIONES"}
+              </button>
+            ) : (
+              <button
+                onClick={handleDisable}
+                disabled={working}
+                className="flex items-center gap-2 border border-[#2a2a2a] hover:border-[#8c8c8c] text-[#8c8c8c] hover:text-[#f0f0ee] disabled:opacity-40 px-4 py-2.5 text-[10px] tracking-[0.15em] transition-colors"
+                style={{ fontFamily: "var(--font-space-mono)" }}
+              >
+                <BellOff size={12} />
+                {working ? "DESACTIVANDO..." : "DESACTIVAR EN ESTE DISPOSITIVO"}
+              </button>
+            )}
+
+            {permission === "denied" && (
+              <p className="text-[#c8102e] text-[10px]" style={{ fontFamily: "var(--font-space-mono)" }}>
+                ⚠ Has bloqueado las notificaciones. Actívalas en los ajustes del navegador para este sitio.
+              </p>
+            )}
+
+            {error && (
+              <p className="text-[#c8102e] text-[10px]" style={{ fontFamily: "var(--font-space-mono)" }}>
+                ⚠ {error}
+              </p>
+            )}
+
+            <p className="text-[#2a2a2a] text-[9px]" style={{ fontFamily: "var(--font-space-mono)" }}>
+              // La suscripción es por dispositivo. Actívalas en cada móvil/ordenador donde quieras recibirlas.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

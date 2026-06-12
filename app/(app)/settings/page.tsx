@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import {
   User, Palette, Users, Plug, Database, Bell, Smartphone, ChevronRight, CheckCircle, Clock,
 } from "lucide-react";
+import { NotificationsSettings } from "@/components/NotificationsSettings";
 
 const INTEGRATIONS = [
   { name: "Shopify", icon: "SH", status: "pending", desc: "E-commerce y stock" },
@@ -259,6 +260,9 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Push notifications */}
+          <NotificationsSettings />
         </div>
       </div>
     </div>
